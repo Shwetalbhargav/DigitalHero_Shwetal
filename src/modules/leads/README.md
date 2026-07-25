@@ -15,3 +15,11 @@ application services. Next.js components and route handlers must use
 Run `npm run db:setup` after configuring `.env.local`. The idempotent command
 creates the collection when absent, reapplies its strict validator when present,
 and ensures both indexes exist.
+
+## Public submission API
+
+`POST /api/leads` accepts only same-origin JSON requests containing `name`,
+`email`, `budgetRange`, and `message`. Validation failures return HTTP 422 with
+field errors keyed by those names. Status and timestamps are server-owned.
+Unexpected persistence errors return a generic retryable response and never
+include MongoDB details.
