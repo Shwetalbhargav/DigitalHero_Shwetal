@@ -1,14 +1,17 @@
-# Leads module boundary
+# Leads data module
 
-The leads module will own the public lead-capture and admin lead-management
-business rules introduced by later Task A branches.
+The module owns lead types, input validation, persistence, DTO mapping, and
+application services. Next.js components and route handlers must use
+`createLeadService`; MongoDB documents remain private to the repository.
 
-Planned responsibilities:
+## Data model
 
-- lead domain types and validation;
-- lead application services;
-- MongoDB repository implementations;
-- transport-safe data transfer objects.
+- `status`: `new`, `contacted`, or `closed` (`new` is assigned on creation)
+- `budgetRange`: `under-5k`, `5k-10k`, `10k-25k`, or `25k-plus`
+- `createdAt` and `updatedAt`: MongoDB dates, exposed by the service as ISO 8601
+- compound index: `{ status: 1, createdAt: -1 }`
+- email index: `{ email: 1 }`
 
-UI components and Next.js route handlers should call this module rather than
-accessing MongoDB directly.
+Run `npm run db:setup` after configuring `.env.local`. The idempotent command
+creates the collection when absent, reapplies its strict validator when present,
+and ensures both indexes exist.
