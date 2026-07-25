@@ -23,7 +23,13 @@ or authorization middleware.
 
 2. Copy `.env.example` to `.env.local` and replace the example MongoDB values.
 
-3. Start the development server:
+3. Create or update the validated leads collection and indexes:
+
+   ```bash
+   npm run db:setup
+   ```
+
+4. Start the development server:
 
    ```bash
    npm run dev
