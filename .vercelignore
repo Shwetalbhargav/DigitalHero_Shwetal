@@ -1,0 +1,5 @@
+.env
+.env.*
+.next
+coverage
+node_modules

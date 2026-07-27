@@ -1,14 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
-import type { z, ZodError } from "zod";
 
 import {
-  LEAD_FIELD_NAMES,
-  type LeadFieldErrors,
   type LeadSubmissionError,
   type LeadSubmissionSuccess,
 } from "@/modules/leads/lead.api";
 import { createLeadService } from "@/modules/leads/lead.service";
-import { createLeadSchema } from "@/modules/leads/lead.validation";
+import {
+  createLeadSchema,
+  getLeadFieldErrors,
+} from "@/modules/leads/lead.validation";
 
 const leadService = createLeadService();
 
@@ -28,18 +28,6 @@ function isSameOrigin(request: NextRequest): boolean {
   } catch {
     return false;
   }
-}
-
-function getFieldErrors(
-  error: ZodError<z.input<typeof createLeadSchema>>,
-): LeadFieldErrors {
-  const flattened = error.flatten().fieldErrors;
-  return Object.fromEntries(
-    LEAD_FIELD_NAMES.flatMap((field) => {
-      const message = flattened[field]?.[0];
-      return message ? [[field, message]] : [];
-    }),
-  );
 }
 
 export async function POST(
@@ -70,7 +58,7 @@ export async function POST(
       code: "VALIDATION_ERROR",
       message: "Check the highlighted fields and try again.",
       retryable: false,
-      fieldErrors: getFieldErrors(parsed.error),
+      fieldErrors: getLeadFieldErrors(parsed.error),
     });
   }
 
