@@ -6,7 +6,8 @@ import type { PersistedLead } from "./lead.mapping";
 import type {
   CreateLeadInput,
   LeadBudgetRange,
-  LeadQuery,
+  LeadDashboardCounts,
+  LeadListQuery,
   LeadStatus,
 } from "./lead.types";
 
@@ -22,7 +23,12 @@ interface LeadDocument {
 
 export interface LeadRepository {
   create(input: CreateLeadInput): Promise<PersistedLead>;
-  findAll(query?: LeadQuery): Promise<PersistedLead[]>;
+  findPage(query: LeadListQuery): Promise<{
+    items: PersistedLead[];
+    totalItems: number;
+    counts: LeadDashboardCounts;
+  }>;
+  findById(id: string): Promise<PersistedLead | null>;
   updateStatus(id: string, status: LeadStatus): Promise<PersistedLead | null>;
 }
 
@@ -48,6 +54,17 @@ function escapeRegularExpression(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
+function buildFilter(query: LeadListQuery): Filter<LeadDocument> {
+  const filter: Filter<LeadDocument> = {};
+  if (query.status) filter.status = query.status;
+  const search = query.search?.trim();
+  if (search) {
+    const pattern = new RegExp(escapeRegularExpression(search), "i");
+    filter.$or = [{ name: pattern }, { email: pattern }, { message: pattern }];
+  }
+  return filter;
+}
+
 export function createMongoLeadRepository(): LeadRepository {
   return {
     async create(input) {
@@ -63,20 +80,44 @@ export function createMongoLeadRepository(): LeadRepository {
       return mapDocument({ ...document, _id: result.insertedId });
     },
 
-    async findAll(query = {}) {
-      const filter: Filter<LeadDocument> = {};
-      if (query.status) filter.status = query.status;
-      const search = query.search?.trim();
-      if (search) {
-        const pattern = new RegExp(escapeRegularExpression(search), "i");
-        filter.$or = [{ name: pattern }, { email: pattern }];
-      }
+    async findPage(query) {
       const collection = await getLeadsCollection();
-      const documents = await collection
-        .find(filter)
-        .sort({ createdAt: -1 })
-        .toArray();
-      return documents.map(mapDocument);
+      const filter = buildFilter(query);
+      const direction = query.sort === "oldest" ? 1 : -1;
+      const [documents, totalItems, groupedCounts] = await Promise.all([
+        collection
+          .find(filter)
+          .sort({ createdAt: direction, _id: direction })
+          .skip((query.page - 1) * query.pageSize)
+          .limit(query.pageSize)
+          .toArray(),
+        collection.countDocuments(filter),
+        collection
+          .aggregate<{ _id: LeadStatus; count: number }>([
+            { $group: { _id: "$status", count: { $sum: 1 } } },
+          ])
+          .toArray(),
+      ]);
+      const counts: LeadDashboardCounts = {
+        total: 0,
+        new: 0,
+        contacted: 0,
+        closed: 0,
+      };
+      for (const item of groupedCounts) counts[item._id] = item.count;
+      counts.total = counts.new + counts.contacted + counts.closed;
+      return {
+        items: documents.map(mapDocument),
+        totalItems,
+        counts,
+      };
+    },
+
+    async findById(id) {
+      if (!ObjectId.isValid(id)) return null;
+      const collection = await getLeadsCollection();
+      const document = await collection.findOne({ _id: new ObjectId(id) });
+      return document ? mapDocument(document) : null;
     },
 
     async updateStatus(id, status) {

@@ -16,6 +16,19 @@ Run `npm run db:setup` after configuring `.env.local`. The idempotent command
 creates the collection when absent, reapplies its strict validator when present,
 and ensures both indexes exist.
 
+
+## Unprotected Task A admin API
+
+- `GET /api/admin/leads` supports `search`, `status`, `sort`, `page`, and
+  `pageSize`; it returns table-safe items, filtered pagination metadata, and
+  global dashboard counts.
+- `GET /api/admin/leads/:id` returns the complete lead for the details drawer.
+- `PATCH /api/admin/leads/:id` accepts only a `status` of `new`, `contacted`, or
+  `closed`.
+
+These endpoints are intentionally unprotected for Task A. Authentication and
+authorization belong to Task B.
+
 ## Public submission API
 
 `POST /api/leads` accepts only same-origin JSON requests containing `name`,
@@ -23,3 +36,4 @@ and ensures both indexes exist.
 field errors keyed by those names. Status and timestamps are server-owned.
 Unexpected persistence errors return a generic retryable response and never
 include MongoDB details.
+
