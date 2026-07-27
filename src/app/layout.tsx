@@ -10,8 +10,9 @@ const geist = Geist({
 });
 
 export const metadata: Metadata = {
-  title: "LeadDesk Mini",
-  description: "Capture and manage project enquiries.",
+  title: "LeadDesk | Digital products built to perform",
+  description:
+    "Strategy, design, and development for ambitious teams ready to build their next digital product.",
 };
 
 export default function RootLayout({

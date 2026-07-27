@@ -1,14 +1,23 @@
+import { ContactSection } from "@/components/landing/contact-section";
+import { Footer } from "@/components/landing/footer";
+import { Hero } from "@/components/landing/hero";
+import { Navigation } from "@/components/landing/navigation";
+import { ProcessSection } from "@/components/landing/process-section";
+import { ServicesSection } from "@/components/landing/services-section";
+import { TrustStrip } from "@/components/landing/trust-strip";
+
 export default function HomePage() {
   return (
-    <main className="foundation">
-      <section className="foundation__card" aria-labelledby="page-title">
-        <p className="foundation__eyebrow">Task A foundation</p>
-        <h1 id="page-title">LeadDesk Mini</h1>
-        <p>
-          The typed application foundation is ready for the public lead flow
-          and intentionally unprotected admin experience.
-        </p>
-      </section>
-    </main>
+    <>
+      <Navigation />
+      <main>
+        <Hero />
+        <TrustStrip />
+        <ProcessSection />
+        <ServicesSection />
+        <ContactSection />
+      </main>
+      <Footer />
+    </>
   );
 }
