@@ -9,6 +9,7 @@ out/
 coverage/
 *.tsbuildinfo
 *.log
+.vercel/
 
 # Local environment files and secrets
 .env

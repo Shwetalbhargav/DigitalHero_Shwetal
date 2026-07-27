@@ -21,11 +21,12 @@ sessions, protected routes, and role checks are reserved for later work.
    npm install
    ```
 
-2. Copy `.env.example` to `.env.local` and replace its placeholder values:
+2. Copy `.env.example` to `.env.local` and replace its placeholder values with
+   an Atlas deployment user and cluster:
 
    ```dotenv
-   MONGODB_URI=mongodb://127.0.0.1:27017
-   MONGODB_DB_NAME=leaddesk
+   MONGODB_URI=mongodb+srv://username:password@cluster.example.mongodb.net/?retryWrites=true&w=majority
+   MONGODB_DB_NAME=leaddesk-production
    ```
 
 3. Create or update the validated collection and indexes:
@@ -57,6 +58,7 @@ environment files, or local database data.
 | `GET /api/admin/leads` | Searchable, filterable, paginated lead list |
 | `GET /api/admin/leads/:id` | Full lead details |
 | `PATCH /api/admin/leads/:id` | Update a lead to `new`, `contacted`, or `closed` |
+| `GET /api/health` | Verify that the deployment can reach MongoDB |
 
 `GET /api/admin/leads` accepts `search`, `status`, `sort`, `page`, and
 `pageSize`. Search covers name, email, and message. Sort values are `newest`
@@ -121,6 +123,21 @@ console errors were checked during the flow.
 
 Screenshots are verification artifacts from the local Task A application and
 contain only synthetic test data.
+
+## Production deployment
+
+- Landing page: <https://leaddesk-mini-flame.vercel.app/>
+- Admin dashboard: <https://leaddesk-mini-flame.vercel.app/admin>
+- Health check: <https://leaddesk-mini-flame.vercel.app/api/health>
+
+Vercel production configuration requires `MONGODB_URI` as a sensitive
+environment variable and `MONGODB_DB_NAME` as a regular environment variable.
+The values are configured in Vercel rather than committed to the repository.
+After changing the Atlas connection or database name, run `npm run db:setup`
+from a trusted environment using those same values before deploying.
+
+The production smoke test uses a synthetic lead and removes it afterward. Task
+A intentionally leaves `/admin` and its APIs unprotected.
 
 ## Architecture
 
