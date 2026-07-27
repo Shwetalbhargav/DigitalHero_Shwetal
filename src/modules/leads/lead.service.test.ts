@@ -21,7 +21,12 @@ function repository(overrides: Partial<LeadRepository> = {}): LeadRepository {
   };
   return {
     create: vi.fn().mockResolvedValue(lead),
-    findAll: vi.fn().mockResolvedValue([lead]),
+    findPage: vi.fn().mockResolvedValue({
+      items: [lead],
+      totalItems: 21,
+      counts: { total: 25, new: 10, contacted: 8, closed: 7 },
+    }),
+    findById: vi.fn().mockResolvedValue(lead),
     updateStatus: vi.fn().mockResolvedValue({ ...lead, status: "contacted" }),
     ...overrides,
   };
@@ -48,5 +53,38 @@ describe("lead service", () => {
       service.create({ ...input, email: "not-an-email" }),
     ).rejects.toThrow();
     expect(store.create).not.toHaveBeenCalled();
+  });
+
+  it("maps list projection, pagination, and dashboard counts", async () => {
+    const store = repository();
+    const service = createLeadService(store);
+    const result = await service.list({
+      sort: "newest",
+      page: 2,
+      pageSize: 10,
+    });
+
+    expect(store.findPage).toHaveBeenCalledWith({
+      sort: "newest",
+      page: 2,
+      pageSize: 10,
+    });
+    expect(result).toMatchObject({
+      items: [
+        {
+          id: "507f1f77bcf86cd799439011",
+          name: "Ada Lovelace",
+          status: "new",
+        },
+      ],
+      pagination: {
+        page: 2,
+        pageSize: 10,
+        totalItems: 21,
+        totalPages: 3,
+      },
+      counts: { total: 25, new: 10, contacted: 8, closed: 7 },
+    });
+    expect(result.items[0]).not.toHaveProperty("message");
   });
 });

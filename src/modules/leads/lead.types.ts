@@ -29,7 +29,41 @@ export interface Lead {
   updatedAt: string;
 }
 
-export interface LeadQuery {
+export const LEAD_SORTS = ["newest", "oldest"] as const;
+
+export type LeadSort = (typeof LEAD_SORTS)[number];
+
+export interface LeadListQuery {
   search?: string;
   status?: LeadStatus;
+  sort: LeadSort;
+  page: number;
+  pageSize: number;
+}
+
+export interface LeadListItem {
+  id: string;
+  name: string;
+  email: string;
+  budgetRange: LeadBudgetRange;
+  status: LeadStatus;
+  createdAt: string;
+}
+
+export interface LeadDashboardCounts {
+  total: number;
+  new: number;
+  contacted: number;
+  closed: number;
+}
+
+export interface LeadListResult {
+  items: LeadListItem[];
+  pagination: {
+    page: number;
+    pageSize: number;
+    totalItems: number;
+    totalPages: number;
+  };
+  counts: LeadDashboardCounts;
 }
