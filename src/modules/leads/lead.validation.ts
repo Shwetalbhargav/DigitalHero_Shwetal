@@ -1,5 +1,6 @@
-import { z } from "zod";
+import { z, type ZodError } from "zod";
 
+import { LEAD_FIELD_NAMES, type LeadFieldErrors } from "./lead.api";
 import { LEAD_BUDGET_RANGES, LEAD_STATUSES } from "./lead.types";
 
 export const createLeadSchema = z.object({
@@ -25,3 +26,15 @@ export const createLeadSchema = z.object({
 }).strict();
 
 export const leadStatusSchema = z.enum(LEAD_STATUSES);
+
+export function getLeadFieldErrors(
+  error: ZodError<z.input<typeof createLeadSchema>>,
+): LeadFieldErrors {
+  const flattened = error.flatten().fieldErrors;
+  return Object.fromEntries(
+    LEAD_FIELD_NAMES.flatMap((field) => {
+      const message = flattened[field]?.[0];
+      return message ? [[field, message]] : [];
+    }),
+  );
+}
