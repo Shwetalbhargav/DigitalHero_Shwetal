@@ -16,6 +16,7 @@ Run `npm run db:setup` after configuring `.env.local`. The idempotent command
 creates the collection when absent, reapplies its strict validator when present,
 and ensures both indexes exist.
 
+
 ## Unprotected Task A admin API
 
 - `GET /api/admin/leads` supports `search`, `status`, `sort`, `page`, and
@@ -27,3 +28,12 @@ and ensures both indexes exist.
 
 These endpoints are intentionally unprotected for Task A. Authentication and
 authorization belong to Task B.
+
+## Public submission API
+
+`POST /api/leads` accepts only same-origin JSON requests containing `name`,
+`email`, `budgetRange`, and `message`. Validation failures return HTTP 422 with
+field errors keyed by those names. Status and timestamps are server-owned.
+Unexpected persistence errors return a generic retryable response and never
+include MongoDB details.
+
