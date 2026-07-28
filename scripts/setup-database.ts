@@ -3,10 +3,14 @@ import dotenv from "dotenv";
 dotenv.config({ path: [".env.local", ".env"], quiet: true });
 
 async function main(): Promise<void> {
-  const [{ getMongoClient, getDatabase }, { setupLeadsCollection }] =
-    await Promise.all([
+  const [
+    { getMongoClient, getDatabase },
+    { setupLeadsCollection },
+    { setupAuthCollections },
+  ] = await Promise.all([
       import("../src/infrastructure/database/mongodb"),
       import("../src/infrastructure/database/leads-collection"),
+      import("../src/infrastructure/database/auth-collections"),
     ]);
 
   const client = await getMongoClient();
@@ -14,7 +18,8 @@ async function main(): Promise<void> {
   try {
     const database = await getDatabase();
     await setupLeadsCollection(database);
-    process.stdout.write("MongoDB leads collection is ready.\n");
+    await setupAuthCollections(database);
+    process.stdout.write("MongoDB leads, users, and sessions are ready.\n");
   } finally {
     await client.close();
   }
