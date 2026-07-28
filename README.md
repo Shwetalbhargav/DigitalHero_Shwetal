@@ -212,6 +212,10 @@ environment files, local database files, or deployment secrets.
 7. Run the production smoke flow with synthetic lead data and remove it after
    review.
 
+The exact migration, assessment provisioning, production smoke, and immutable
+tag sequence is documented in the
+[Task B production release runbook](docs/task-b/release-runbook.md).
+
 `ADMIN_PASSWORD` is needed by the provisioning command, not by browser code.
 Do not expose it through Vercel client variables, build output, logs, a PR,
 README, screenshot, or Loom recording.
