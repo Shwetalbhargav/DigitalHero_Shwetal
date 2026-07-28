@@ -1,220 +1,295 @@
-# LeadDesk Mini — Task A
+# LeadDesk Mini
 
 LeadDesk Mini is a Next.js and TypeScript application for capturing project
-enquiries and managing their progress in a lightweight admin dashboard.
+enquiries and managing them through a protected admin workspace.
 
-Task A's public lead workflow and dashboard remain unchanged. Task B adds
-database-backed admin authentication, a dedicated login experience, and
-server-side protection for the dashboard and every admin lead endpoint.
+Task A provides the public landing page, lead form, lead persistence, search,
+filtering, details, and status management. Task B adds database-backed admin
+identity, secure sessions, a dedicated login experience, authorization for the
+dashboard and admin APIs, abuse protection, audit events, and end-to-end
+authentication coverage.
 
-## Requirements
+## Live application
 
-- Node.js 20.9 or newer
-- npm
-- MongoDB Atlas or a local MongoDB instance
+| Surface | URL | Verification status |
+| --- | --- | --- |
+| Public landing page | <https://leaddesk-mini-flame.vercel.app/> | `200`, verified 28 July 2026 |
+| Admin login | <https://leaddesk-mini-flame.vercel.app/login> | Awaiting Task B production deployment |
+| Admin dashboard | <https://leaddesk-mini-flame.vercel.app/admin> | Awaiting Task B production deployment |
+| Health check | <https://leaddesk-mini-flame.vercel.app/api/health> | `200`, verified 28 July 2026 |
 
-## Local setup
+The current Vercel deployment still serves Task A: `/login` returns `404`.
+Deploy the merged Task B release before using the login/dashboard links for
+review or recording the walkthrough. The repository does not claim an
+unverified preview URL as production.
 
-1. Install dependencies:
+## Architecture
 
-   ```bash
-   npm install
-   ```
+```text
+Browser
+  |
+  v
+Next.js App Router
+  |-- Server components: /admin access gate
+  |-- Client components: forms and dashboard interactions
+  `-- Route handlers: /api/leads, /api/auth/*, /api/admin/*
+          |
+          v
+Domain services
+  |-- auth: credentials, throttling, session lifecycle
+  `-- leads: submission, queries, details, status changes
+          |
+          v
+MongoDB repositories
+  |-- leads
+  |-- users
+  |-- sessions
+  `-- loginAttempts
+```
 
-2. Copy `.env.example` to `.env.local` and replace its placeholder values with
-   an Atlas deployment user and cluster:
+The code follows these boundaries:
 
-   ```dotenv
-   MONGODB_URI=mongodb+srv://username:password@cluster.example.mongodb.net/?retryWrites=true&w=majority
-   MONGODB_DB_NAME=leaddesk-production
-   ADMIN_EMAIL=admin@example.com
-   ADMIN_PASSWORD=choose-a-strong-unique-password
-   ```
-
-3. Create or update the validated collection and indexes:
-
-   ```bash
-   npm run db:setup
-   ```
-
-   The command is idempotent. It creates or validates the `leads`, `users`, and
-   `sessions` collections and ensures their required indexes exist.
-
-4. Provision the environment-driven admin identity:
-
-   ```bash
-   npm run db:seed-admin
-   ```
-
-   Re-running this command with the same normalized email does not create a
-   duplicate. Passwords are stored only as salted scrypt hashes.
-
-5. Start the application:
-
-   ```bash
-   npm run dev
-   ```
-
-Environment files are ignored by Git. Never commit credentials, generated
-environment files, or local database data.
-
-## URLs
-
-| URL | Purpose |
+| Location | Responsibility |
 | --- | --- |
-| `/` | Public landing page and lead form |
-| `/login` | Admin sign-in form |
-| `/admin` | Protected lead-management dashboard |
-| `POST /api/auth/login` | Validate admin credentials and create a session |
-| `POST /api/auth/logout` | Revoke the current session |
-| `GET /api/auth/session` | Read the current active identity and expiry |
-| `POST /api/leads` | Same-origin public lead submission |
-| `GET /api/admin/leads` | Searchable, filterable, paginated lead list |
-| `GET /api/admin/leads/:id` | Full lead details |
-| `PATCH /api/admin/leads/:id` | Update a lead to `new`, `contacted`, or `closed` |
-| `GET /api/health` | Verify that the deployment can reach MongoDB |
+| `src/app` | Pages, server components, route handlers, and route-local UI |
+| `src/components` | Reusable public-page components |
+| `src/modules/auth` | Auth contracts, validation, crypto, service, repository, and authorization |
+| `src/modules/leads` | Lead contracts, validation, mapping, service, and repository |
+| `src/infrastructure` | MongoDB connection, collection setup, and security audit logging |
+| `src/config` | Server-only environment validation |
+| `src/shared` | Cross-module request security |
+| `tests/e2e` | Isolated production-build browser journeys |
 
-`GET /api/admin/leads` accepts `search`, `status`, `sort`, `page`, and
-`pageSize`. Search covers name, email, and message. Sort values are `newest`
-and `oldest`.
+Route handlers validate untrusted input before calling services. Services own
+business rules, repositories own MongoDB documents, and API/page consumers see
+only mapped domain objects.
+
+## Authentication
+
+Authentication establishes the admin identity:
+
+1. `POST /api/auth/login` validates the email/password shape.
+2. The normalized email is looked up without revealing whether it exists.
+3. The supplied password is verified against a salted scrypt hash.
+4. Repeated failures are counted by a one-way email/IP identifier. Five
+   failures within 15 minutes produce a generic `429` with `Retry-After`.
+5. A successful login revokes earlier sessions and creates a cryptographically
+   random opaque session token.
+6. Only the token's SHA-256 hash enters MongoDB. The raw token is returned only
+   in an `HttpOnly`, `SameSite=Lax` cookie that is `Secure` in production.
+
+Standard sessions last 12 hours. Selecting "Keep me signed in" creates a
+30-day server session and matching persistent cookie. Logout deletes the
+server-side session and expires the cookie. Expired sessions are rejected
+immediately by the query, independent of asynchronous TTL cleanup.
+
+Passwords and raw session tokens are never stored or logged. Authentication
+responses use generic language and never disclose whether an email exists.
+
+## Authorization
+
+Authorization decides whether an authenticated identity may access a protected
+resource:
+
+- `/admin` verifies the cookie-backed session on the server before rendering.
+- Every `/api/admin/*` handler independently verifies the session before
+  reading or mutating lead data.
+- The user must still exist and have `status: "active"` on every verification.
+- Missing, expired, revoked, deleted-user, and disabled-user sessions fail
+  closed without exposing lead data.
+- Unauthenticated pages redirect to `/login?next=...`; only local `/admin`
+  return targets are accepted.
+- Expired sessions add `reason=expired`, producing the distinct approved alert.
+- Browser back-navigation cannot restore access because protected responses
+  use `Cache-Control: no-store` and data requests re-check the database.
+
+All state-changing routes require an exact same-origin `Origin` header.
+Security events use fixed event/outcome values and never include credentials,
+tokens, hashes, request bodies, or exception details.
 
 ## Data model
 
-MongoDB stores leads with these server-validated fields:
+MongoDB collection validators reject unexpected fields and enforce the stored
+shape.
 
-| Field | Type and rules |
+### `leads`
+
+| Field | Stored value |
 | --- | --- |
-| `name` | Trimmed string, 1–120 characters |
+| `name` | Trimmed string, 1-120 characters |
 | `email` | Normalized lowercase email, at most 254 characters |
 | `budgetRange` | `under-5k`, `5k-10k`, `10k-25k`, or `25k-plus` |
-| `message` | Trimmed string, 1–5,000 characters |
-| `status` | `new`, `contacted`, or `closed`; defaults to `new` |
-| `createdAt` | Server-owned MongoDB date |
-| `updatedAt` | Server-owned MongoDB date |
+| `message` | Trimmed string, 1-5,000 characters |
+| `status` | `new`, `contacted`, or `closed` |
+| `createdAt`, `updatedAt` | Server-owned dates |
 
-The collection has `{ status: 1, createdAt: -1 }` and `{ email: 1 }` indexes.
-MongoDB documents remain private to the repository; services return mapped
-domain objects with string IDs and ISO 8601 timestamps.
+Indexes: `{ status: 1, createdAt: -1 }` and `{ email: 1 }`.
 
-## Authentication data model
+### `users`
 
-The `users` collection stores a unique normalized email, a salted scrypt
-password hash, account status, and server-owned timestamps. The `sessions`
-collection stores a user ID, SHA-256 token hash, expiry, and creation time. Raw
-session tokens and plaintext passwords never enter MongoDB.
+| Field | Stored value |
+| --- | --- |
+| `normalizedEmail` | Unique normalized admin email |
+| `passwordHash` | Versioned salted scrypt hash |
+| `status` | `active` or `disabled` |
+| `createdAt`, `updatedAt` | Server-owned dates |
 
-MongoDB has a unique `{ normalizedEmail: 1 }` user index, a unique
-`{ tokenHash: 1 }` session index, and a zero-delay TTL index on
-`{ expiresAt: 1 }`. Session reads also require `expiresAt > now`, because TTL
-deletion is asynchronous and must not define authorization behavior. See
-[`src/modules/auth/README.md`](src/modules/auth/README.md) for provisioning and
-module boundaries.
+Index: unique `{ normalizedEmail: 1 }`.
 
-Login attempts are retained for 24 hours with hashed email/IP identifiers.
-Five failed attempts within 15 minutes are rate limited. Authentication cookies
-are server-only (`HttpOnly`), `SameSite=Lax`, and `Secure` in production; raw
-tokens never appear in JSON responses. `/admin` verifies the session on the
-server before rendering, and every `/api/admin/*` handler independently rejects
-missing, expired, revoked, deleted-user, or disabled-user sessions before
-accessing lead data.
+### `sessions`
 
-Every state-changing route requires an exact same-origin `Origin` header.
-Successful login rotates all earlier sessions for that user, while logout
-revokes the current server-side session. Security audit events use a fixed
-allowlist of event names and identifiers; passwords, tokens, hashes, request
-bodies, and exception details are never logged. Global response headers deny
-framing, MIME sniffing, sensitive browser features, and cross-origin opener
-access.
+| Field | Stored value |
+| --- | --- |
+| `userId` | Owning user ObjectId |
+| `tokenHash` | Unique SHA-256 hash of the opaque cookie token |
+| `expiresAt` | Absolute server expiry |
+| `createdAt` | Server-owned date |
 
-The login page accepts an optional local `/admin` destination through the
-`next` query parameter and rejects external or non-admin redirect targets. Use
-`reason=expired` to show the distinct expired-session alert. Incorrect
-credentials preserve the entered email, clear and focus the password field, and
-show a generic message that does not reveal whether the account exists.
-The dashboard identity menu signs out through the server before returning to
-login. Browser back-navigation cannot restore access because both page renders
-and data requests re-check the database-backed session.
+Indexes: unique `{ tokenHash: 1 }` and zero-delay TTL `{ expiresAt: 1 }`.
 
-## Task A behavior
+### `loginAttempts`
 
-- The public form shares its Zod schema with the API, focuses the first invalid
-  field, blocks duplicate submissions, and announces loading, success, and
-  retryable failure states.
-- Successful submissions clear the form. Server failures preserve entered
-  values and do not expose database errors.
-- The admin dashboard maps search, filters, sort, and pagination to URL state.
-- Admin status updates persist and report success or failure with an accessible
-  toast.
-- Empty-database and no-results states are intentionally different.
-- The dashboard uses a table on desktop and cards on mobile without horizontal
-  table overflow.
+| Field | Stored value |
+| --- | --- |
+| `identifierHash` | One-way email/IP identifier |
+| `outcome` | `success`, `invalid_credentials`, or `rate_limited` |
+| `userId` | Present only for successful known users |
+| `createdAt`, `expiresAt` | Audit time and 24-hour retention boundary |
 
-## Validation
+Indexes support recent-failure counting and automatic TTL cleanup.
+
+## Local setup from a clean clone
+
+Requirements:
+
+- Node.js 24.x
+- npm
+- MongoDB Atlas or a local MongoDB deployment
+
+```bash
+git clone https://github.com/Shwetalbhargav/DigitalHero_Shwetal.git
+cd DigitalHero_Shwetal
+npm ci
+```
+
+Copy `.env.example` to `.env.local`, then replace every example value:
+
+```dotenv
+MONGODB_URI=mongodb+srv://username:password@cluster.example.mongodb.net/?retryWrites=true&w=majority
+MONGODB_DB_NAME=leaddesk-development
+ADMIN_EMAIL=admin@example.com
+ADMIN_PASSWORD=choose-a-strong-unique-password
+```
+
+Initialize the database and provision the admin:
 
 ```bash
 npm run db:setup
 npm run db:seed-admin
+npm run dev
+```
+
+Open <http://localhost:3000/> and <http://localhost:3000/login>.
+`db:setup` and `db:seed-admin` are idempotent. Re-running the seed with the same
+normalized email does not create a duplicate.
+
+Environment files are ignored by Git. Never commit real credentials, generated
+environment files, local database files, or deployment secrets.
+
+## Production setup
+
+1. Create a dedicated MongoDB database user with access only to the production
+   LeadDesk database.
+2. Configure `MONGODB_URI` as a sensitive server environment variable and
+   `MONGODB_DB_NAME` as a server environment variable in Vercel.
+3. Do not create `NEXT_PUBLIC_` variants of database, admin, or session secrets.
+4. From a trusted environment using the production database values, run
+   `npm run db:setup`.
+5. Provision or rotate the admin with `ADMIN_EMAIL` and `ADMIN_PASSWORD` set
+   only in that trusted environment: `npm run db:seed-admin`.
+6. Deploy the merged `main` branch, then verify `/`, `/login`, `/admin`, and
+   `/api/health` in a fresh browser.
+7. Run the production smoke flow with synthetic lead data and remove it after
+   review.
+
+The exact migration, assessment provisioning, production smoke, and immutable
+tag sequence is documented in the
+[Task B production release runbook](docs/task-b/release-runbook.md).
+
+`ADMIN_PASSWORD` is needed by the provisioning command, not by browser code.
+Do not expose it through Vercel client variables, build output, logs, a PR,
+README, screenshot, or Loom recording.
+
+## Test credentials
+
+Review credentials must be delivered privately through an approved password
+manager, one-time secret link, or direct private message to the named reviewer.
+Send the production URL and admin email separately from the password when
+possible. Never place the password in GitHub, issue comments, CI output,
+screenshots, or the Loom description. Rotate or disable the review identity
+after the review window.
+
+The automated E2E suite does not use shared credentials. It generates a random
+admin email/password and an in-memory MongoDB instance for each run, then
+destroys them.
+
+## Validation
+
+Install Chromium once for browser tests:
+
+```bash
+npx playwright install chromium
+```
+
+Run the release checks:
+
+```bash
 npm run typecheck
 npm run lint
 npm test
 npm run build
 npm run security:audit
 npm run test:e2e
+npm audit --omit=dev --audit-level=high
 ```
 
-The test suite covers validation and service behavior, normalized public and
-admin API contracts, form states, dashboard query state, database setup, and a
-public-to-admin API journey through all three statuses.
+The browser suite covers a fresh context, login and return URL, refresh
+persistence, forced expiry, logout, unauthorized APIs, public lead submission,
+admin search/details, and all status transitions.
 
-`npm run security:audit` must run after `npm run build`. It rejects
-`NEXT_PUBLIC_` variants of server secrets and scans generated browser assets
-for configured database credentials, admin passwords, private keys, and
-password-hash material.
+## Working flow and screenshots
 
-`npm run test:e2e` runs Chromium against a production build and a temporary
-in-memory MongoDB instance. It generates test-only admin credentials at runtime,
-verifies fresh-browser login, refresh, expiry, logout, unauthorized APIs, and
-the complete Task A lead workflow, then destroys the database. Install the
-browser binary once with `npx playwright install chromium`.
+1. Submit a project enquiry from the public form.
+2. Open `/admin`; a fresh browser is redirected to `/login`.
+3. Sign in with privately delivered review credentials.
+4. Search for the submitted email and open its details.
+5. Update the lead through `new`, `contacted`, and `closed`.
+6. Sign out and confirm `/admin` is protected again.
 
-## Visual and accessibility review
+- [Public form - desktop](docs/task-a/screenshots/public-form-desktop.jpg)
+- [Admin dashboard - desktop](docs/task-a/screenshots/admin-dashboard-desktop.jpg)
+- [Admin dashboard - mobile](docs/task-a/screenshots/admin-dashboard-mobile.jpg)
 
-Task A was reviewed at 1440px desktop and 390px mobile widths. The smoke flow
-covered keyboard navigation, visible focus, form announcements, direct
-unprotected admin access, search, lead details, and status persistence. Browser
-console errors were checked during the flow.
+Screenshots contain only synthetic data and explain the working flow; they are
+not a source of credentials.
 
-- [Public form — desktop](docs/task-a/screenshots/public-form-desktop.jpg)
-- [Admin dashboard — desktop](docs/task-a/screenshots/admin-dashboard-desktop.jpg)
-- [Admin dashboard — mobile](docs/task-a/screenshots/admin-dashboard-mobile.jpg)
+## Loom walkthrough
 
-Screenshots are verification artifacts from the local Task A application and
-contain only synthetic test data.
+- [Three-minute recording script and publication checklist](docs/task-b/loom-walkthrough.md)
+- Recording link: not published because the verified production host has not
+  yet received Task B.
 
-## Production deployment
+The recording must be made only after `/login` returns `200` on the production
+host. Add the Loom share URL here in a follow-up documentation commit after
+checking that no password, cookie, environment value, or private browser data
+is visible.
 
-- Landing page: <https://leaddesk-mini-flame.vercel.app/>
-- Admin dashboard: <https://leaddesk-mini-flame.vercel.app/admin>
-- Health check: <https://leaddesk-mini-flame.vercel.app/api/health>
+## AI-use disclosure
 
-Vercel production configuration requires `MONGODB_URI` as a sensitive
-environment variable and `MONGODB_DB_NAME` as a regular environment variable.
-The values are configured in Vercel rather than committed to the repository.
-`ADMIN_PASSWORD`, `MONGODB_URI`, and any future session secret must never use a
-`NEXT_PUBLIC_` prefix.
-After changing the Atlas connection or database name, run `npm run db:setup`
-from a trusted environment using those same values before deploying.
-
-The production smoke test uses a synthetic lead and removes it afterward.
-
-## Architecture
-
-```text
-src/
-|-- app/               Next.js pages and route handlers
-|-- components/        Reusable UI sections
-|-- config/            Validated server environment
-|-- infrastructure/    MongoDB connection and collection setup
-|-- modules/           Lead domain, repository, service, mapping, and contracts
-`-- shared/            Cross-module code only
-```
+OpenAI Codex was used as an implementation assistant to inspect the repository,
+draft code and documentation, run tests, automate browser verification, and
+review diffs. Architecture and security decisions were checked against the
+project requirements, and generated changes were validated with TypeScript,
+ESLint, Vitest, a production build, the secret audit, and isolated Playwright
+flows. No production password, session token, private key, or unredacted
+deployment secret was intentionally provided to the AI or committed.

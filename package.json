@@ -14,6 +14,8 @@
     "test": "vitest run",
     "test:e2e": "tsx scripts/run-auth-e2e.ts",
     "security:audit": "tsx scripts/audit-production-secrets.ts",
+    "release:prepare": "tsx scripts/prepare-task-b-release.ts",
+    "release:verify": "tsx scripts/verify-task-b-deployment.ts",
     "db:setup": "tsx scripts/setup-database.ts",
     "db:seed-admin": "tsx scripts/seed-admin.ts"
   },
