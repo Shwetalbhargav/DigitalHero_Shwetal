@@ -64,7 +64,11 @@ environment files, or local database data.
 | URL | Purpose |
 | --- | --- |
 | `/` | Public landing page and lead form |
+| `/login` | Admin sign-in form |
 | `/admin` | Unprotected lead-management dashboard |
+| `POST /api/auth/login` | Validate admin credentials and create a session |
+| `POST /api/auth/logout` | Revoke the current session |
+| `GET /api/auth/session` | Read the current active identity and expiry |
 | `POST /api/leads` | Same-origin public lead submission |
 | `GET /api/admin/leads` | Searchable, filterable, paginated lead list |
 | `GET /api/admin/leads/:id` | Full lead details |
@@ -106,6 +110,18 @@ MongoDB has a unique `{ normalizedEmail: 1 }` user index, a unique
 deletion is asynchronous and must not define authorization behavior. See
 [`src/modules/auth/README.md`](src/modules/auth/README.md) for provisioning and
 module boundaries.
+
+Login attempts are retained for 24 hours with hashed email/IP identifiers.
+Five failed attempts within 15 minutes are rate limited. Authentication cookies
+are server-only (`HttpOnly`), `SameSite=Lax`, and `Secure` in production; raw
+tokens never appear in JSON responses. This branch exposes authentication APIs
+but intentionally does not yet protect `/admin` or admin lead APIs.
+
+The login page accepts an optional local `/admin` destination through the
+`next` query parameter and rejects external or non-admin redirect targets. Use
+`reason=expired` to show the distinct expired-session alert. Incorrect
+credentials preserve the entered email, clear and focus the password field, and
+show a generic message that does not reveal whether the account exists.
 
 ## Task A behavior
 

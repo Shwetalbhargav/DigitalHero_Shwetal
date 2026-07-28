@@ -80,4 +80,19 @@ describe("Mongo auth repository", () => {
       expiresAt: { $gt: new Date("2026-01-01T01:00:00.000Z") },
     });
   });
+
+  it("revokes a session using only the opaque token hash", async () => {
+    const deleteOne = vi.fn().mockResolvedValue({ deletedCount: 1 });
+    database.collection.mockReturnValue({ deleteOne });
+    const repository = createMongoAuthRepository();
+
+    await repository.revokeSession("raw-session-token");
+
+    expect(deleteOne).toHaveBeenCalledWith({
+      tokenHash: hashSessionToken("raw-session-token"),
+    });
+    expect(JSON.stringify(deleteOne.mock.calls)).not.toContain(
+      "raw-session-token",
+    );
+  });
 });

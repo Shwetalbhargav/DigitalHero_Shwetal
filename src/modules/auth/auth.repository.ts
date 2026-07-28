@@ -17,6 +17,7 @@ import {
 import type {
   AuthUser,
   CreatedSession,
+  LoginOutcome,
   Session,
   UserStatus,
 } from "./auth.types";
@@ -36,10 +37,32 @@ interface SessionDocument {
   createdAt: Date;
 }
 
+interface LoginAttemptDocument {
+  identifierHash: string;
+  outcome: LoginOutcome;
+  userId?: ObjectId;
+  createdAt: Date;
+  expiresAt: Date;
+}
+
 export interface AuthRepository {
   provisionAdmin(email: string, password: string): Promise<AuthUser>;
+  authenticate(email: string, password: string): Promise<AuthUser | null>;
+  findActiveUserById(userId: string): Promise<AuthUser | null>;
   createSession(userId: string, expiresAt: Date): Promise<CreatedSession>;
   findActiveSession(token: string, now?: Date): Promise<Session | null>;
+  revokeSession(token: string): Promise<void>;
+  countRecentFailedLogins(
+    identifierHash: string,
+    since: Date,
+  ): Promise<number>;
+  recordLoginAttempt(input: {
+    identifierHash: string;
+    outcome: LoginOutcome;
+    userId?: string;
+    createdAt: Date;
+    expiresAt: Date;
+  }): Promise<void>;
 }
 
 async function getUsersCollection(): Promise<Collection<UserDocument>> {
@@ -50,6 +73,13 @@ async function getUsersCollection(): Promise<Collection<UserDocument>> {
 async function getSessionsCollection(): Promise<Collection<SessionDocument>> {
   const database = await getDatabase();
   return database.collection<SessionDocument>("sessions");
+}
+
+async function getLoginAttemptsCollection(): Promise<
+  Collection<LoginAttemptDocument>
+> {
+  const database = await getDatabase();
+  return database.collection<LoginAttemptDocument>("loginAttempts");
 }
 
 function mapUser(document: WithId<UserDocument>): AuthUser {
@@ -112,6 +142,31 @@ export function createMongoAuthRepository(): AuthRepository {
       }
     },
 
+    async authenticate(email, password) {
+      const collection = await getUsersCollection();
+      const document = await collection.findOne({
+        normalizedEmail: normalizeEmail(email),
+        status: "active",
+      });
+      if (!document) {
+        await hashPassword(password);
+        return null;
+      }
+      return (await verifyPassword(password, document.passwordHash))
+        ? mapUser(document)
+        : null;
+    },
+
+    async findActiveUserById(userId) {
+      if (!ObjectId.isValid(userId)) return null;
+      const collection = await getUsersCollection();
+      const document = await collection.findOne({
+        _id: new ObjectId(userId),
+        status: "active",
+      });
+      return document ? mapUser(document) : null;
+    },
+
     async createSession(userId, expiresAt) {
       if (!ObjectId.isValid(userId)) throw new Error("Invalid user id.");
       const collection = await getSessionsCollection();
@@ -136,6 +191,32 @@ export function createMongoAuthRepository(): AuthRepository {
         expiresAt: { $gt: now },
       });
       return document ? mapSession(document) : null;
+    },
+
+    async revokeSession(token) {
+      const collection = await getSessionsCollection();
+      await collection.deleteOne({ tokenHash: hashSessionToken(token) });
+    },
+
+    async countRecentFailedLogins(identifierHash, since) {
+      const collection = await getLoginAttemptsCollection();
+      return collection.countDocuments({
+        identifierHash,
+        outcome: "invalid_credentials",
+        createdAt: { $gte: since },
+      });
+    },
+
+    async recordLoginAttempt(input) {
+      const collection = await getLoginAttemptsCollection();
+      const document: LoginAttemptDocument = {
+        identifierHash: input.identifierHash,
+        outcome: input.outcome,
+        createdAt: input.createdAt,
+        expiresAt: input.expiresAt,
+      };
+      if (input.userId) document.userId = new ObjectId(input.userId);
+      await collection.insertOne(document);
     },
   };
 }

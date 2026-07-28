@@ -1,9 +1,12 @@
 import { describe, expect, it, vi } from "vitest";
 
 import {
+  LOGIN_ATTEMPTS_EXPIRES_AT_TTL_INDEX,
+  LOGIN_ATTEMPTS_IDENTIFIER_CREATED_AT_INDEX,
   SESSIONS_EXPIRES_AT_TTL_INDEX,
   SESSIONS_TOKEN_HASH_INDEX,
   USERS_NORMALIZED_EMAIL_INDEX,
+  loginAttemptsCollectionValidator,
   sessionsCollectionValidator,
   setupAuthCollections,
   usersCollectionValidator,
@@ -38,6 +41,11 @@ describe("auth collection setup", () => {
       validationLevel: "strict",
       validationAction: "error",
     });
+    expect(database.createCollection).toHaveBeenCalledWith("loginAttempts", {
+      validator: loginAttemptsCollectionValidator,
+      validationLevel: "strict",
+      validationAction: "error",
+    });
     expect(indexes.get("users")).toHaveBeenCalledWith(
       { normalizedEmail: 1 },
       { name: USERS_NORMALIZED_EMAIL_INDEX, unique: true },
@@ -45,6 +53,17 @@ describe("auth collection setup", () => {
     expect(indexes.get("sessions")).toHaveBeenCalledWith(
       { tokenHash: 1 },
       { name: SESSIONS_TOKEN_HASH_INDEX, unique: true },
+    );
+    expect(indexes.get("loginAttempts")).toHaveBeenCalledWith(
+      { identifierHash: 1, outcome: 1, createdAt: -1 },
+      { name: LOGIN_ATTEMPTS_IDENTIFIER_CREATED_AT_INDEX },
+    );
+    expect(indexes.get("loginAttempts")).toHaveBeenCalledWith(
+      { expiresAt: 1 },
+      {
+        name: LOGIN_ATTEMPTS_EXPIRES_AT_TTL_INDEX,
+        expireAfterSeconds: 0,
+      },
     );
     expect(indexes.get("sessions")).toHaveBeenCalledWith(
       { expiresAt: 1 },
@@ -56,6 +75,10 @@ describe("auth collection setup", () => {
     const existing = new Map<string, object>([
       ["users", { options: { validator: usersCollectionValidator } }],
       ["sessions", { options: { validator: sessionsCollectionValidator } }],
+      [
+        "loginAttempts",
+        { options: { validator: loginAttemptsCollectionValidator } },
+      ],
     ]);
     const database = {
       listCollections: vi.fn(({ name }: { name: string }) => ({
@@ -88,6 +111,6 @@ describe("auth collection setup", () => {
 
     await setupAuthCollections(database as never);
 
-    expect(database.command).toHaveBeenCalledTimes(2);
+    expect(database.command).toHaveBeenCalledTimes(3);
   });
 });

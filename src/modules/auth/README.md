@@ -1,8 +1,8 @@
 # Authentication data module
 
-This module owns admin identities, password hashing, and opaque database-backed
-sessions. It intentionally does not expose HTTP routes, cookies, or admin-route
-protection; those belong to later Task B branches.
+This module owns admin identities, password hashing, opaque database-backed
+sessions, login auditing, and authentication APIs. Admin-route protection and
+login UI remain assigned to later Task B branches.
 
 ## Users
 
@@ -32,3 +32,25 @@ The seed command ensures the auth collections and indexes exist, creates one
 normalized admin identity when absent, leaves an unchanged password hash alone,
 and rotates the hash when the environment password changes. Running it again
 with the same values does not create or rewrite a user.
+
+## Authentication API
+
+| Route | Behavior |
+| --- | --- |
+| `POST /api/auth/login` | Validates credentials and issues an opaque session cookie |
+| `POST /api/auth/logout` | Revokes the database session and expires the cookie |
+| `GET /api/auth/session` | Returns the active user and expiry without returning a token |
+
+The `leaddesk_session` cookie is `HttpOnly`, `SameSite=Lax`, scoped to `/`, and
+`Secure` in production. A standard login creates a 12-hour server session and a
+browser-session cookie. Selecting remember creates a 30-day server session and
+adds the matching cookie `Max-Age`.
+
+Invalid emails and passwords share the same `401` response. Five failed attempts
+for a hashed email/IP identifier within 15 minutes trigger a `429`. Login audit
+records retain only the one-way identifier hash and outcome, expire after 24
+hours, and never contain passwords or session tokens.
+
+Client IP derivation assumes the deployment edge replaces `X-Forwarded-For` or
+`X-Real-IP`; direct deployments must configure a trusted reverse proxy before
+using those headers for abuse controls.

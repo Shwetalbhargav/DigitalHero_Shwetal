@@ -19,7 +19,9 @@ async function main(): Promise<void> {
     const database = await getDatabase();
     await setupLeadsCollection(database);
     await setupAuthCollections(database);
-    process.stdout.write("MongoDB leads, users, and sessions are ready.\n");
+    process.stdout.write(
+      "MongoDB leads, users, sessions, and login attempts are ready.\n",
+    );
   } finally {
     await client.close();
   }
