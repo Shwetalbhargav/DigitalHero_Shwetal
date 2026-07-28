@@ -95,4 +95,15 @@ describe("Mongo auth repository", () => {
       "raw-session-token",
     );
   });
+
+  it("revokes every prior session when rotating a user's login", async () => {
+    const userId = new ObjectId();
+    const deleteMany = vi.fn().mockResolvedValue({ deletedCount: 2 });
+    database.collection.mockReturnValue({ deleteMany });
+    const repository = createMongoAuthRepository();
+
+    await repository.revokeSessionsForUser(userId.toHexString());
+
+    expect(deleteMany).toHaveBeenCalledWith({ userId });
+  });
 });

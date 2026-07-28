@@ -1,3 +1,5 @@
+import { writeSecurityAuditEvent } from "@/infrastructure/security/audit-log";
+
 import { hashLoginIdentifier } from "./auth.crypto";
 import {
   createMongoAuthRepository,
@@ -46,6 +48,10 @@ export function createAuthService(
           createdAt: now,
           expiresAt: auditExpiry,
         });
+        writeSecurityAuditEvent({
+          event: "login_throttled",
+          outcome: "rejected",
+        });
         return { kind: "rate_limited" };
       }
 
@@ -57,12 +63,22 @@ export function createAuthService(
           createdAt: now,
           expiresAt: auditExpiry,
         });
+        writeSecurityAuditEvent({
+          event: "login_failed",
+          outcome: "rejected",
+        });
         return { kind: "invalid_credentials" };
       }
 
       const duration = input.remember
         ? REMEMBERED_SESSION_MS
         : STANDARD_SESSION_MS;
+      await repository.revokeSessionsForUser(user.id);
+      writeSecurityAuditEvent({
+        event: "sessions_rotated",
+        outcome: "success",
+        userId: user.id,
+      });
       const session = await repository.createSession(
         user.id,
         new Date(now.getTime() + duration),
@@ -79,6 +95,11 @@ export function createAuthService(
         await repository.revokeSession(session.token);
         throw error;
       }
+      writeSecurityAuditEvent({
+        event: "login_succeeded",
+        outcome: "success",
+        userId: user.id,
+      });
       return { kind: "authenticated", session, user };
     },
 
@@ -91,6 +112,10 @@ export function createAuthService(
 
     async logout(token) {
       await repository.revokeSession(token);
+      writeSecurityAuditEvent({
+        event: "session_revoked",
+        outcome: "success",
+      });
     },
   };
 }

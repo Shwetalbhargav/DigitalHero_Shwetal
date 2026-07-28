@@ -52,6 +52,7 @@ export interface AuthRepository {
   createSession(userId: string, expiresAt: Date): Promise<CreatedSession>;
   findActiveSession(token: string, now?: Date): Promise<Session | null>;
   revokeSession(token: string): Promise<void>;
+  revokeSessionsForUser(userId: string): Promise<void>;
   countRecentFailedLogins(
     identifierHash: string,
     since: Date,
@@ -196,6 +197,12 @@ export function createMongoAuthRepository(): AuthRepository {
     async revokeSession(token) {
       const collection = await getSessionsCollection();
       await collection.deleteOne({ tokenHash: hashSessionToken(token) });
+    },
+
+    async revokeSessionsForUser(userId) {
+      if (!ObjectId.isValid(userId)) throw new Error("Invalid user id.");
+      const collection = await getSessionsCollection();
+      await collection.deleteMany({ userId: new ObjectId(userId) });
     },
 
     async countRecentFailedLogins(identifierHash, since) {
