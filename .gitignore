@@ -7,6 +7,8 @@ out/
 
 # Test and tooling output
 coverage/
+playwright-report/
+test-results/
 *.tsbuildinfo
 *.log
 .vercel/
