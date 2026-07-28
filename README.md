@@ -159,6 +159,7 @@ npm run lint
 npm test
 npm run build
 npm run security:audit
+npm run test:e2e
 ```
 
 The test suite covers validation and service behavior, normalized public and
@@ -169,6 +170,12 @@ public-to-admin API journey through all three statuses.
 `NEXT_PUBLIC_` variants of server secrets and scans generated browser assets
 for configured database credentials, admin passwords, private keys, and
 password-hash material.
+
+`npm run test:e2e` runs Chromium against a production build and a temporary
+in-memory MongoDB instance. It generates test-only admin credentials at runtime,
+verifies fresh-browser login, refresh, expiry, logout, unauthorized APIs, and
+the complete Task A lead workflow, then destroys the database. Install the
+browser binary once with `npx playwright install chromium`.
 
 ## Visual and accessibility review
 
