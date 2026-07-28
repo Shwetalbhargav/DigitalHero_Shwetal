@@ -3,9 +3,10 @@
 LeadDesk Mini is a Next.js and TypeScript application for capturing project
 enquiries and managing their progress in a lightweight admin dashboard.
 
-Task A deliberately has no authentication or authorization. The public page,
-`/admin`, and all admin API routes are directly accessible. Login, users,
-sessions, protected routes, and role checks are reserved for later work.
+Task A's public lead workflow and dashboard remain unchanged. The first Task B
+branch adds persisted admin identities and sessions, but deliberately does not
+yet add login endpoints, cookies, UI, or route protection. Until those later
+branches land, `/admin` and its APIs remain directly accessible.
 
 ## Requirements
 
@@ -27,6 +28,8 @@ sessions, protected routes, and role checks are reserved for later work.
    ```dotenv
    MONGODB_URI=mongodb+srv://username:password@cluster.example.mongodb.net/?retryWrites=true&w=majority
    MONGODB_DB_NAME=leaddesk-production
+   ADMIN_EMAIL=admin@example.com
+   ADMIN_PASSWORD=choose-a-strong-unique-password
    ```
 
 3. Create or update the validated collection and indexes:
@@ -35,11 +38,19 @@ sessions, protected routes, and role checks are reserved for later work.
    npm run db:setup
    ```
 
-   The command is idempotent. It creates the `leads` collection when missing,
-   reapplies its strict validator when present, and ensures the required indexes
-   exist.
+   The command is idempotent. It creates or validates the `leads`, `users`, and
+   `sessions` collections and ensures their required indexes exist.
 
-4. Start the application:
+4. Provision the environment-driven admin identity:
+
+   ```bash
+   npm run db:seed-admin
+   ```
+
+   Re-running this command with the same normalized email does not create a
+   duplicate. Passwords are stored only as salted scrypt hashes.
+
+5. Start the application:
 
    ```bash
    npm run dev
@@ -82,6 +93,20 @@ The collection has `{ status: 1, createdAt: -1 }` and `{ email: 1 }` indexes.
 MongoDB documents remain private to the repository; services return mapped
 domain objects with string IDs and ISO 8601 timestamps.
 
+## Authentication data model
+
+The `users` collection stores a unique normalized email, a salted scrypt
+password hash, account status, and server-owned timestamps. The `sessions`
+collection stores a user ID, SHA-256 token hash, expiry, and creation time. Raw
+session tokens and plaintext passwords never enter MongoDB.
+
+MongoDB has a unique `{ normalizedEmail: 1 }` user index, a unique
+`{ tokenHash: 1 }` session index, and a zero-delay TTL index on
+`{ expiresAt: 1 }`. Session reads also require `expiresAt > now`, because TTL
+deletion is asynchronous and must not define authorization behavior. See
+[`src/modules/auth/README.md`](src/modules/auth/README.md) for provisioning and
+module boundaries.
+
 ## Task A behavior
 
 - The public form shares its Zod schema with the API, focuses the first invalid
@@ -100,6 +125,7 @@ domain objects with string IDs and ISO 8601 timestamps.
 
 ```bash
 npm run db:setup
+npm run db:seed-admin
 npm run typecheck
 npm run lint
 npm test

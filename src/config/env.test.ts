@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { parseServerEnv } from "./env";
+import { parseAdminSeedEnv, parseServerEnv } from "./env";
 
 describe("parseServerEnv", () => {
   it("accepts a valid MongoDB environment", () => {
@@ -31,5 +31,28 @@ describe("parseServerEnv", () => {
         MONGODB_DB_NAME: "lead/desk",
       }),
     ).toThrow("unsupported characters");
+  });
+});
+
+describe("parseAdminSeedEnv", () => {
+  it("normalizes a valid environment-provided admin identity", () => {
+    expect(
+      parseAdminSeedEnv({
+        ADMIN_EMAIL: " Admin@Example.COM ",
+        ADMIN_PASSWORD: "correct horse battery staple",
+      }),
+    ).toEqual({
+      ADMIN_EMAIL: "admin@example.com",
+      ADMIN_PASSWORD: "correct horse battery staple",
+    });
+  });
+
+  it("rejects missing, invalid, or short-lived seed credentials", () => {
+    expect(() =>
+      parseAdminSeedEnv({
+        ADMIN_EMAIL: "not-an-email",
+        ADMIN_PASSWORD: "short",
+      }),
+    ).toThrow();
   });
 });

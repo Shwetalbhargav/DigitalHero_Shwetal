@@ -23,6 +23,21 @@ export const serverEnvSchema = z.object({
 
 export type ServerEnv = z.infer<typeof serverEnvSchema>;
 
+export const adminSeedEnvSchema = z.object({
+  ADMIN_EMAIL: z
+    .string()
+    .trim()
+    .email("ADMIN_EMAIL must be a valid email address.")
+    .max(254)
+    .transform((value) => value.toLowerCase()),
+  ADMIN_PASSWORD: z
+    .string()
+    .min(12, "ADMIN_PASSWORD must be at least 12 characters.")
+    .max(128, "ADMIN_PASSWORD must be 128 characters or fewer."),
+});
+
+export type AdminSeedEnv = z.infer<typeof adminSeedEnvSchema>;
+
 let cachedEnv: ServerEnv | undefined;
 
 export function parseServerEnv(
@@ -34,4 +49,10 @@ export function parseServerEnv(
 export function getServerEnv(): ServerEnv {
   cachedEnv ??= parseServerEnv(process.env);
   return cachedEnv;
+}
+
+export function parseAdminSeedEnv(
+  source: Record<string, string | undefined>,
+): AdminSeedEnv {
+  return adminSeedEnvSchema.parse(source);
 }
