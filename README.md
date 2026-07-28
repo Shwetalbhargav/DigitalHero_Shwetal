@@ -64,6 +64,7 @@ environment files, or local database data.
 | URL | Purpose |
 | --- | --- |
 | `/` | Public landing page and lead form |
+| `/login` | Admin sign-in form |
 | `/admin` | Unprotected lead-management dashboard |
 | `POST /api/auth/login` | Validate admin credentials and create a session |
 | `POST /api/auth/logout` | Revoke the current session |
@@ -115,6 +116,12 @@ Five failed attempts within 15 minutes are rate limited. Authentication cookies
 are server-only (`HttpOnly`), `SameSite=Lax`, and `Secure` in production; raw
 tokens never appear in JSON responses. This branch exposes authentication APIs
 but intentionally does not yet protect `/admin` or admin lead APIs.
+
+The login page accepts an optional local `/admin` destination through the
+`next` query parameter and rejects external or non-admin redirect targets. Use
+`reason=expired` to show the distinct expired-session alert. Incorrect
+credentials preserve the entered email, clear and focus the password field, and
+show a generic message that does not reveal whether the account exists.
 
 ## Task A behavior
 
