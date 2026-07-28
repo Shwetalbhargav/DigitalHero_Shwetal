@@ -12,6 +12,7 @@
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
     "test": "vitest run",
+    "security:audit": "tsx scripts/audit-production-secrets.ts",
     "db:setup": "tsx scripts/setup-database.ts",
     "db:seed-admin": "tsx scripts/seed-admin.ts"
   },

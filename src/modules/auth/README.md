@@ -46,10 +46,21 @@ The `leaddesk_session` cookie is `HttpOnly`, `SameSite=Lax`, scoped to `/`, and
 browser-session cookie. Selecting remember creates a 30-day server session and
 adds the matching cookie `Max-Age`.
 
+A successful login deletes every earlier session for that user before issuing
+the replacement, preventing an older captured cookie from remaining valid.
+Logout deletes the current hashed session record. Login, logout, public lead
+submission, and admin mutations require an exact same-origin request.
+
 Invalid emails and passwords share the same `401` response. Five failed attempts
 for a hashed email/IP identifier within 15 minutes trigger a `429`. Login audit
 records retain only the one-way identifier hash and outcome, expire after 24
 hours, and never contain passwords or session tokens.
+
+Operational audit logs use fixed event and outcome values with an optional user
+ID. They never accept arbitrary request data, credentials, tokens, hashes, or
+exception objects. Run `npm run build && npm run security:audit` before
+production release to inspect browser assets and public environment variables
+for server secret exposure.
 
 Client IP derivation assumes the deployment edge replaces `X-Forwarded-For` or
 `X-Real-IP`; direct deployments must configure a trusted reverse proxy before

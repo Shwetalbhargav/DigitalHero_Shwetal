@@ -37,13 +37,16 @@ export async function GET(
       clearSessionCookie(response);
       return response;
     }
-    return NextResponse.json({
-      ok: true,
-      data: {
-        user: toAuthenticatedUserDto(current.user),
-        expiresAt: current.expiresAt.toISOString(),
+    return NextResponse.json(
+      {
+        ok: true,
+        data: {
+          user: toAuthenticatedUserDto(current.user),
+          expiresAt: current.expiresAt.toISOString(),
+        },
       },
-    });
+      { headers: { "cache-control": "no-store" } },
+    );
   } catch {
     return authErrorResponse(
       500,

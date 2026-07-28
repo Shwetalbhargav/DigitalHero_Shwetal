@@ -123,8 +123,32 @@ describe("POST /api/auth/login", () => {
     );
 
     expect(response.status).toBe(429);
+    expect(response.headers.get("retry-after")).toBe("900");
     await expect(response.json()).resolves.toMatchObject({
       error: { code: "RATE_LIMITED", retryable: true },
     });
+  });
+
+  it("rejects a cross-origin login before checking credentials", async () => {
+    const crossOriginRequest = new NextRequest(
+      "https://leaddesk.test/api/auth/login",
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          origin: "https://attacker.test",
+        },
+        body: JSON.stringify({
+          email: "admin@example.com",
+          password: "correct password",
+          remember: false,
+        }),
+      },
+    );
+
+    const response = await POST(crossOriginRequest);
+
+    expect(response.status).toBe(403);
+    expect(login).not.toHaveBeenCalled();
   });
 });

@@ -1,12 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 
+import { writeSecurityAuditEvent } from "@/infrastructure/security/audit-log";
+import { authorizeAdminRequest } from "@/modules/auth/admin-authorization";
 import type {
   AdminLeadError,
   AdminLeadResponse,
 } from "@/modules/leads/lead.admin";
-import { authorizeAdminRequest } from "@/modules/auth/admin-authorization";
 import { createLeadService } from "@/modules/leads/lead.service";
 import { updateLeadStatusSchema } from "@/modules/leads/lead.validation";
+import { isSameOrigin } from "@/shared/http/request-security";
 
 const leadService = createLeadService();
 
@@ -56,6 +58,17 @@ export async function PATCH(
   request: NextRequest,
   context: RouteContext,
 ): Promise<NextResponse<AdminLeadResponse>> {
+  if (!isSameOrigin(request)) {
+    writeSecurityAuditEvent({
+      event: "cross_origin_rejected",
+      outcome: "rejected",
+    });
+    return errorResponse(403, {
+      code: "INVALID_REQUEST",
+      message: "This request could not be accepted.",
+    });
+  }
+
   const authorization = await authorizeAdminRequest(request);
   if (!authorization.authorized) return authorization.response;
 

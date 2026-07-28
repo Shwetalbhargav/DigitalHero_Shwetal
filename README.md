@@ -118,6 +118,14 @@ server before rendering, and every `/api/admin/*` handler independently rejects
 missing, expired, revoked, deleted-user, or disabled-user sessions before
 accessing lead data.
 
+Every state-changing route requires an exact same-origin `Origin` header.
+Successful login rotates all earlier sessions for that user, while logout
+revokes the current server-side session. Security audit events use a fixed
+allowlist of event names and identifiers; passwords, tokens, hashes, request
+bodies, and exception details are never logged. Global response headers deny
+framing, MIME sniffing, sensitive browser features, and cross-origin opener
+access.
+
 The login page accepts an optional local `/admin` destination through the
 `next` query parameter and rejects external or non-admin redirect targets. Use
 `reason=expired` to show the distinct expired-session alert. Incorrect
@@ -150,11 +158,17 @@ npm run typecheck
 npm run lint
 npm test
 npm run build
+npm run security:audit
 ```
 
 The test suite covers validation and service behavior, normalized public and
 admin API contracts, form states, dashboard query state, database setup, and a
 public-to-admin API journey through all three statuses.
+
+`npm run security:audit` must run after `npm run build`. It rejects
+`NEXT_PUBLIC_` variants of server secrets and scans generated browser assets
+for configured database credentials, admin passwords, private keys, and
+password-hash material.
 
 ## Visual and accessibility review
 
@@ -179,6 +193,8 @@ contain only synthetic test data.
 Vercel production configuration requires `MONGODB_URI` as a sensitive
 environment variable and `MONGODB_DB_NAME` as a regular environment variable.
 The values are configured in Vercel rather than committed to the repository.
+`ADMIN_PASSWORD`, `MONGODB_URI`, and any future session secret must never use a
+`NEXT_PUBLIC_` prefix.
 After changing the Atlas connection or database name, run `npm run db:setup`
 from a trusted environment using those same values before deploying.
 

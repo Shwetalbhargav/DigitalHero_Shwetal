@@ -26,6 +26,7 @@ function repository(): AuthRepository {
     createSession: vi.fn().mockResolvedValue(session),
     findActiveSession: vi.fn().mockResolvedValue(session),
     revokeSession: vi.fn().mockResolvedValue(undefined),
+    revokeSessionsForUser: vi.fn().mockResolvedValue(undefined),
     countRecentFailedLogins: vi.fn().mockResolvedValue(0),
     recordLoginAttempt: vi.fn().mockResolvedValue(undefined),
   };
@@ -60,6 +61,9 @@ describe("auth service", () => {
       expect(authRepository.createSession).toHaveBeenCalledWith(
         user.id,
         new Date(now.getTime() + duration),
+      );
+      expect(authRepository.revokeSessionsForUser).toHaveBeenCalledWith(
+        user.id,
       );
       expect(authRepository.recordLoginAttempt).toHaveBeenCalledWith(
         expect.objectContaining({

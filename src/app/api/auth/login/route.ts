@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 
+import { writeSecurityAuditEvent } from "@/infrastructure/security/audit-log";
 import {
   type AuthError,
   type AuthSuccess,
@@ -21,6 +22,10 @@ export async function POST(
   request: NextRequest,
 ): Promise<NextResponse<AuthSuccess | AuthError>> {
   if (!isSameOrigin(request)) {
+    writeSecurityAuditEvent({
+      event: "cross_origin_rejected",
+      outcome: "rejected",
+    });
     return authErrorResponse(
       403,
       "INVALID_REQUEST",
@@ -49,12 +54,14 @@ export async function POST(
       getClientIpAddress(request),
     );
     if (result.kind === "rate_limited") {
-      return authErrorResponse(
+      const response = authErrorResponse(
         429,
         "RATE_LIMITED",
         "Too many sign-in attempts. Please wait and try again.",
         true,
       );
+      response.headers.set("retry-after", "900");
+      return response;
     }
     if (result.kind === "invalid_credentials") {
       return authErrorResponse(401, "INVALID_CREDENTIALS", CREDENTIAL_ERROR);
@@ -67,6 +74,7 @@ export async function POST(
         expiresAt: result.session.expiresAt.toISOString(),
       },
     });
+    response.headers.set("cache-control", "no-store");
     setSessionCookie(
       response,
       result.session.token,
