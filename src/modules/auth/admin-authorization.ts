@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 
+import { writeSecurityAuditEvent } from "@/infrastructure/security/audit-log";
 import type { AdminLeadError } from "@/modules/leads/lead.admin";
 
 import { AUTH_SESSION_COOKIE } from "./auth.api";
@@ -38,6 +39,10 @@ export async function authorizeAdminRequest(
 ): Promise<AdminAuthorization> {
   const token = request.cookies.get(AUTH_SESSION_COOKIE)?.value;
   if (!token) {
+    writeSecurityAuditEvent({
+      event: "admin_access_denied",
+      outcome: "rejected",
+    });
     return {
       authorized: false,
       response: adminAuthError(
@@ -51,6 +56,10 @@ export async function authorizeAdminRequest(
   try {
     const session = await verifyAdminSession(token, authService);
     if (!session) {
+      writeSecurityAuditEvent({
+        event: "admin_access_denied",
+        outcome: "rejected",
+      });
       const response = adminAuthError(
         401,
         "UNAUTHENTICATED",

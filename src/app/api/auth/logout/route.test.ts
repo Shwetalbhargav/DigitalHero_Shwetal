@@ -42,4 +42,19 @@ describe("POST /api/auth/logout", () => {
     expect(response.status).toBe(204);
     expect(logout).not.toHaveBeenCalled();
   });
+
+  it("rejects cross-origin logout without revoking the session", async () => {
+    const response = await POST(
+      new NextRequest("https://leaddesk.test/api/auth/logout", {
+        method: "POST",
+        headers: {
+          origin: "https://attacker.test",
+          cookie: "leaddesk_session=opaque-token",
+        },
+      }),
+    );
+
+    expect(response.status).toBe(403);
+    expect(logout).not.toHaveBeenCalled();
+  });
 });

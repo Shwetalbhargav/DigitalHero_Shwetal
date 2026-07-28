@@ -66,7 +66,10 @@ describe("/api/admin/leads/:id", () => {
           method,
           ...(method === "PATCH"
             ? {
-                headers: { "content-type": "application/json" },
+                headers: {
+                  "content-type": "application/json",
+                  origin: "https://leaddesk.test",
+                },
                 body: JSON.stringify({ status: "closed" }),
               }
             : {}),
@@ -115,7 +118,10 @@ describe("/api/admin/leads/:id", () => {
           `https://leaddesk.test/api/admin/leads/${lead.id}`,
           {
             method: "PATCH",
-            headers: { "content-type": "application/json" },
+            headers: {
+              "content-type": "application/json",
+              origin: "https://leaddesk.test",
+            },
             body: JSON.stringify({ status }),
           },
         ),
@@ -131,7 +137,10 @@ describe("/api/admin/leads/:id", () => {
     const response = await PATCH(
       new NextRequest(`https://leaddesk.test/api/admin/leads/${lead.id}`, {
         method: "PATCH",
-        headers: { "content-type": "application/json" },
+        headers: {
+          "content-type": "application/json",
+          origin: "https://leaddesk.test",
+        },
         body: JSON.stringify({ status: "won" }),
       }),
       context(),
@@ -139,5 +148,24 @@ describe("/api/admin/leads/:id", () => {
 
     expect(response.status).toBe(422);
     expect(serviceMocks.updateStatus).not.toHaveBeenCalled();
+  });
+
+  it("rejects a cross-origin status mutation before authorization or data access", async () => {
+    const response = await PATCH(
+      new NextRequest(`https://leaddesk.test/api/admin/leads/${lead.id}`, {
+        method: "PATCH",
+        headers: {
+          "content-type": "application/json",
+          origin: "https://attacker.test",
+        },
+        body: JSON.stringify({ status: "closed" }),
+      }),
+      context(),
+    );
+
+    expect(response.status).toBe(403);
+    expect(serviceMocks.authorizeAdminRequest).not.toHaveBeenCalled();
+    expect(serviceMocks.updateStatus).not.toHaveBeenCalled();
+    expect(JSON.stringify(await response.json())).not.toContain(lead.email);
   });
 });

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 
+import { writeSecurityAuditEvent } from "@/infrastructure/security/audit-log";
 import { AUTH_SESSION_COOKIE, type AuthError } from "@/modules/auth/auth.api";
 import {
   authErrorResponse,
@@ -14,6 +15,10 @@ export async function POST(
   request: NextRequest,
 ): Promise<NextResponse<null | AuthError>> {
   if (!isSameOrigin(request)) {
+    writeSecurityAuditEvent({
+      event: "cross_origin_rejected",
+      outcome: "rejected",
+    });
     return authErrorResponse(
       403,
       "INVALID_REQUEST",
@@ -24,7 +29,10 @@ export async function POST(
   const token = request.cookies.get(AUTH_SESSION_COOKIE)?.value;
   try {
     if (token) await authService.logout(token);
-    const response = new NextResponse<null>(null, { status: 204 });
+    const response = new NextResponse<null>(null, {
+      status: 204,
+      headers: { "cache-control": "no-store" },
+    });
     clearSessionCookie(response);
     return response;
   } catch {

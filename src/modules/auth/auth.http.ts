@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
+import { isSameOrigin } from "@/shared/http/request-security";
+
 import {
   AUTH_SESSION_COOKIE,
   type AuthError,
@@ -14,19 +16,11 @@ export function authErrorResponse(
 ): NextResponse<AuthError> {
   return NextResponse.json(
     { ok: false, error: { code, message, retryable } },
-    { status },
+    { status, headers: { "cache-control": "no-store" } },
   );
 }
 
-export function isSameOrigin(request: NextRequest): boolean {
-  const origin = request.headers.get("origin");
-  if (!origin) return false;
-  try {
-    return new URL(origin).origin === request.nextUrl.origin;
-  } catch {
-    return false;
-  }
-}
+export { isSameOrigin };
 
 export function getClientIpAddress(request: NextRequest): string {
   return (

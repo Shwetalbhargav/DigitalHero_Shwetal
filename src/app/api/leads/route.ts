@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 
+import { writeSecurityAuditEvent } from "@/infrastructure/security/audit-log";
 import {
   type LeadSubmissionError,
   type LeadSubmissionSuccess,
@@ -9,6 +10,7 @@ import {
   createLeadSchema,
   getLeadFieldErrors,
 } from "@/modules/leads/lead.validation";
+import { isSameOrigin } from "@/shared/http/request-security";
 
 const leadService = createLeadService();
 
@@ -19,21 +21,14 @@ function errorResponse(
   return NextResponse.json({ ok: false, error }, { status });
 }
 
-function isSameOrigin(request: NextRequest): boolean {
-  const origin = request.headers.get("origin");
-  if (!origin) return false;
-
-  try {
-    return new URL(origin).origin === request.nextUrl.origin;
-  } catch {
-    return false;
-  }
-}
-
 export async function POST(
   request: NextRequest,
 ): Promise<NextResponse<LeadSubmissionSuccess | LeadSubmissionError>> {
   if (!isSameOrigin(request)) {
+    writeSecurityAuditEvent({
+      event: "cross_origin_rejected",
+      outcome: "rejected",
+    });
     return errorResponse(403, {
       code: "ORIGIN_NOT_ALLOWED",
       message: "This submission could not be accepted.",

@@ -144,7 +144,10 @@ describe("Task A public-to-admin API flow", () => {
           "https://leaddesk.test/api/admin/leads/507f1f77bcf86cd799439011",
           {
             method: "PATCH",
-            headers: { "content-type": "application/json" },
+            headers: {
+              "content-type": "application/json",
+              origin: "https://leaddesk.test",
+            },
             body: JSON.stringify({ status }),
           },
         ),
