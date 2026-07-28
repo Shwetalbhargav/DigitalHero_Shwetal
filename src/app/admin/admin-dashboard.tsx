@@ -100,7 +100,7 @@ export function DashboardLoading() {
   );
 }
 
-export function AdminDashboard() {
+export function AdminDashboard({ userEmail }: { userEmail: string }) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const query = useMemo(
@@ -117,6 +117,7 @@ export function AdminDashboard() {
   const [isDetailLoading, setIsDetailLoading] = useState(false);
   const [updatingId, setUpdatingId] = useState<string>();
   const [toast, setToast] = useState<Toast>();
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
   const toastTimer = useRef<number | undefined>(undefined);
 
   const showToast = useCallback((nextToast: Toast) => {
@@ -124,6 +125,23 @@ export function AdminDashboard() {
     setToast(nextToast);
     toastTimer.current = window.setTimeout(() => setToast(undefined), 4_000);
   }, []);
+
+  const redirectToLogin = useCallback(() => {
+    const returnTo = `${window.location.pathname}${window.location.search}`;
+    router.replace(
+      `/login?reason=expired&next=${encodeURIComponent(returnTo)}`,
+    );
+    router.refresh();
+  }, [router]);
+
+  const rejectUnauthorized = useCallback(
+    (response: Response): boolean => {
+      if (response.status !== 401) return false;
+      redirectToLogin();
+      return true;
+    },
+    [redirectToLogin],
+  );
 
   useEffect(
     () => () => window.clearTimeout(toastTimer.current),
@@ -139,6 +157,7 @@ export function AdminDashboard() {
       params.set("pageSize", String(PAGE_SIZE));
       try {
         const response = await fetch(`/api/admin/leads?${params}`);
+        if (rejectUnauthorized(response)) return;
         const payload = (await response.json()) as AdminLeadListResponse;
         if (!response.ok || !payload.ok) throw new Error("List request failed");
         setData(payload.data);
@@ -149,7 +168,7 @@ export function AdminDashboard() {
         setIsRefreshing(false);
       }
     },
-    [query],
+    [query, rejectUnauthorized],
   );
 
   useEffect(() => {
@@ -180,6 +199,7 @@ export function AdminDashboard() {
     setIsDetailLoading(true);
     try {
       const response = await fetch(`/api/admin/leads/${id}`);
+      if (rejectUnauthorized(response)) return;
       const payload = (await response.json()) as AdminLeadResponse;
       if (!response.ok || !payload.ok) throw new Error("Detail request failed");
       setSelectedLead(payload.data.lead);
@@ -213,6 +233,7 @@ export function AdminDashboard() {
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ status }),
       });
+      if (rejectUnauthorized(response)) return;
       const payload = (await response.json()) as AdminLeadResponse;
       if (!response.ok || !payload.ok) throw new Error("Update failed");
       setSelectedLead((current) =>
@@ -233,6 +254,24 @@ export function AdminDashboard() {
     }
   }
 
+  async function logout() {
+    if (isLoggingOut) return;
+    setIsLoggingOut(true);
+    try {
+      const response = await fetch("/api/auth/logout", { method: "POST" });
+      if (!response.ok) throw new Error("Logout failed");
+      const returnTo = `${window.location.pathname}${window.location.search}`;
+      router.replace(`/login?next=${encodeURIComponent(returnTo)}`);
+      router.refresh();
+    } catch {
+      showToast({
+        kind: "error",
+        message: "Sign out failed. Please try again.",
+      });
+      setIsLoggingOut(false);
+    }
+  }
+
   const view = data
     ? getDashboardView(data.counts.total, data.items.length)
     : undefined;
@@ -244,13 +283,31 @@ export function AdminDashboard() {
           <span aria-hidden="true">L</span>
           LeadDesk
         </Link>
-        <div className={styles.adminIdentity}>
-          <span aria-hidden="true">A</span>
-          <div>
-            <strong>Admin workspace</strong>
-            <small>Task A · Unprotected</small>
+        <details className={styles.userMenu}>
+          <summary className={styles.adminIdentity}>
+            <span aria-hidden="true">
+              {userEmail.charAt(0).toUpperCase()}
+            </span>
+            <div>
+              <strong>Admin workspace</strong>
+              <small>{userEmail}</small>
+            </div>
+            <span className={styles.menuChevron} aria-hidden="true">
+              ▾
+            </span>
+          </summary>
+          <div className={styles.userMenuPanel}>
+            <p>Signed in as</p>
+            <strong>{userEmail}</strong>
+            <button
+              type="button"
+              onClick={() => void logout()}
+              disabled={isLoggingOut}
+            >
+              {isLoggingOut ? "Signing out…" : "Sign out"}
+            </button>
           </div>
-        </div>
+        </details>
       </header>
 
       <div className={styles.content}>
