@@ -73,6 +73,13 @@ vi.mock("@/modules/leads/lead.service", () => ({
   }),
 }));
 
+vi.mock("@/modules/auth/admin-authorization", () => ({
+  authorizeAdminRequest: vi.fn().mockResolvedValue({
+    authorized: true,
+    session: {},
+  }),
+}));
+
 import { GET as listLeads } from "./admin/leads/route";
 import { GET as getLead, PATCH as updateLead } from "./admin/leads/[id]/route";
 import { POST as createLead } from "./leads/route";
