@@ -98,3 +98,9 @@ export function createSessionToken(): string {
 export function hashSessionToken(token: string): string {
   return createHash("sha256").update(token, "utf8").digest("base64url");
 }
+
+export function hashLoginIdentifier(email: string, ipAddress: string): string {
+  return createHash("sha256")
+    .update(`${normalizeEmail(email)}\0${ipAddress}`, "utf8")
+    .digest("base64url");
+}

@@ -20,3 +20,15 @@ export interface Session {
 export interface CreatedSession extends Session {
   token: string;
 }
+
+export interface CurrentSession extends Session {
+  user: AuthUser;
+}
+
+export const LOGIN_OUTCOMES = [
+  "success",
+  "invalid_credentials",
+  "rate_limited",
+] as const;
+
+export type LoginOutcome = (typeof LOGIN_OUTCOMES)[number];
