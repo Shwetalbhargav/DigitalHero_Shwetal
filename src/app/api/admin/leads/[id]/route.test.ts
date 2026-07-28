@@ -4,10 +4,15 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const serviceMocks = vi.hoisted(() => ({
   get: vi.fn(),
   updateStatus: vi.fn(),
+  authorizeAdminRequest: vi.fn(),
 }));
 
 vi.mock("@/modules/leads/lead.service", () => ({
   createLeadService: () => serviceMocks,
+}));
+
+vi.mock("@/modules/auth/admin-authorization", () => ({
+  authorizeAdminRequest: serviceMocks.authorizeAdminRequest,
 }));
 
 import { GET, PATCH } from "./route";
@@ -35,7 +40,49 @@ describe("/api/admin/leads/:id", () => {
     serviceMocks.updateStatus.mockImplementation(
       async (_id: string, status: string) => ({ ...lead, status }),
     );
+    serviceMocks.authorizeAdminRequest.mockReset();
+    serviceMocks.authorizeAdminRequest.mockResolvedValue({
+      authorized: true,
+      session: {},
+    });
   });
+
+  it.each(["GET", "PATCH"])(
+    "returns 401 before reading data for unauthorized %s",
+    async (method) => {
+      serviceMocks.authorizeAdminRequest.mockResolvedValueOnce({
+        authorized: false,
+        response: Response.json(
+          {
+            ok: false,
+            error: { code: "UNAUTHENTICATED", message: "Sign in." },
+          },
+          { status: 401 },
+        ),
+      });
+      const request = new NextRequest(
+        `https://leaddesk.test/api/admin/leads/${lead.id}`,
+        {
+          method,
+          ...(method === "PATCH"
+            ? {
+                headers: { "content-type": "application/json" },
+                body: JSON.stringify({ status: "closed" }),
+              }
+            : {}),
+        },
+      );
+
+      const response =
+        method === "GET"
+          ? await GET(request, context())
+          : await PATCH(request, context());
+
+      expect(response.status).toBe(401);
+      expect(serviceMocks.get).not.toHaveBeenCalled();
+      expect(serviceMocks.updateStatus).not.toHaveBeenCalled();
+    },
+  );
 
   it("returns lead details", async () => {
     const response = await GET(

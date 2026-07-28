@@ -15,7 +15,11 @@ export interface AdminLeadSuccess {
 export interface AdminLeadError {
   ok: false;
   error: {
-    code: "INVALID_REQUEST" | "NOT_FOUND" | "INTERNAL_ERROR";
+    code:
+      | "INVALID_REQUEST"
+      | "NOT_FOUND"
+      | "UNAUTHENTICATED"
+      | "INTERNAL_ERROR";
     message: string;
   };
 }

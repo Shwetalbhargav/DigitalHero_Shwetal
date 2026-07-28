@@ -1,8 +1,8 @@
 # Authentication data module
 
 This module owns admin identities, password hashing, opaque database-backed
-sessions, login auditing, and authentication APIs. Admin-route protection and
-login UI remain assigned to later Task B branches.
+sessions, login auditing, authentication APIs, and shared server-side admin
+authorization.
 
 ## Users
 
@@ -54,3 +54,11 @@ hours, and never contain passwords or session tokens.
 Client IP derivation assumes the deployment edge replaces `X-Forwarded-For` or
 `X-Real-IP`; direct deployments must configure a trusted reverse proxy before
 using those headers for abuse controls.
+
+## Admin authorization
+
+The `/admin` server component verifies the session before rendering lead UI.
+Each `/api/admin/*` handler repeats that verification before parsing input or
+calling the leads service. A session is valid only while its user still exists
+and remains active. Logout revokes the database record, so cached browser
+history cannot regain page or API access.

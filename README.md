@@ -3,10 +3,9 @@
 LeadDesk Mini is a Next.js and TypeScript application for capturing project
 enquiries and managing their progress in a lightweight admin dashboard.
 
-Task A's public lead workflow and dashboard remain unchanged. The first Task B
-branch adds persisted admin identities and sessions, but deliberately does not
-yet add login endpoints, cookies, UI, or route protection. Until those later
-branches land, `/admin` and its APIs remain directly accessible.
+Task A's public lead workflow and dashboard remain unchanged. Task B adds
+database-backed admin authentication, a dedicated login experience, and
+server-side protection for the dashboard and every admin lead endpoint.
 
 ## Requirements
 
@@ -65,7 +64,7 @@ environment files, or local database data.
 | --- | --- |
 | `/` | Public landing page and lead form |
 | `/login` | Admin sign-in form |
-| `/admin` | Unprotected lead-management dashboard |
+| `/admin` | Protected lead-management dashboard |
 | `POST /api/auth/login` | Validate admin credentials and create a session |
 | `POST /api/auth/logout` | Revoke the current session |
 | `GET /api/auth/session` | Read the current active identity and expiry |
@@ -114,14 +113,19 @@ module boundaries.
 Login attempts are retained for 24 hours with hashed email/IP identifiers.
 Five failed attempts within 15 minutes are rate limited. Authentication cookies
 are server-only (`HttpOnly`), `SameSite=Lax`, and `Secure` in production; raw
-tokens never appear in JSON responses. This branch exposes authentication APIs
-but intentionally does not yet protect `/admin` or admin lead APIs.
+tokens never appear in JSON responses. `/admin` verifies the session on the
+server before rendering, and every `/api/admin/*` handler independently rejects
+missing, expired, revoked, deleted-user, or disabled-user sessions before
+accessing lead data.
 
 The login page accepts an optional local `/admin` destination through the
 `next` query parameter and rejects external or non-admin redirect targets. Use
 `reason=expired` to show the distinct expired-session alert. Incorrect
 credentials preserve the entered email, clear and focus the password field, and
 show a generic message that does not reveal whether the account exists.
+The dashboard identity menu signs out through the server before returning to
+login. Browser back-navigation cannot restore access because both page renders
+and data requests re-check the database-backed session.
 
 ## Task A behavior
 
@@ -178,8 +182,7 @@ The values are configured in Vercel rather than committed to the repository.
 After changing the Atlas connection or database name, run `npm run db:setup`
 from a trusted environment using those same values before deploying.
 
-The production smoke test uses a synthetic lead and removes it afterward. Task
-A intentionally leaves `/admin` and its APIs unprotected.
+The production smoke test uses a synthetic lead and removes it afterward.
 
 ## Architecture
 
